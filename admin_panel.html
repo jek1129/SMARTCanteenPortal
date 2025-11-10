@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canteen Monitoring – Admin Panel</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- jsPDF and AutoTable for PDF download of the School Summary -->
+    <!-- These libraries enable client‑side PDF generation. The UMD build exposes jsPDF under window.jspdf. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        /*
+        The overall colour palette and typography in this admin panel mirror the
+        existing eme2.html page. Re‑using the same CSS variables helps to
+        provide a cohesive brand look across both pages. Feel free to adjust
+        variables at the top of the file to tweak the theme globally.
+        */
+        :root {
+            --primary: #0056b3;
+            --secondary: #f8f9fa;
+            --accent: #ffc107;
+            --text: #333;
+            --white: #fff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --sidebar-width: 250px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('bek.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            color: var(--text);
+        }
+
+        .admin-container {
+            display: flex;
+            flex: 1;
+            min-height: 100vh;
+            backdrop-filter: blur(3px);
+        }
+
+        /* Sidebar navigation */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary);
+            color: var(--white);
+            padding: 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+        }
+
+        .sidebar h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .nav-menu {
+            list-style: none;
+            width: 100%;
+        }
+
+        .nav-menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            color: inherit;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Content area */
+        .content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .tab {
+            display: none;
+        }
+        .tab.active {
+            display: block;
+        }
+
+        .tab h3 {
+            font-size: 1.6rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        /* Filter controls */
+        .filters {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .filters select {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            min-width: 160px;
+            font-size: 0.9rem;
+        }
+
+        /* Table styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        table thead {
+            background: var(--primary);
+            color: var(--white);
+        }
+        table th, table td {
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+            border: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+        table tbody tr:nth-child(even) {
+            background: #f7f7f7;
+        }
+
+        /* Make table headers sticky for easier comparison when scrolling */
+        table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        /* Slider container */
+        .slider-container {
+            margin: 1.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .slider-container input[type="range"] {
+            flex: 1;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 360px;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 60px;
+                padding: 1rem 0.5rem;
+                align-items: center;
+            }
+            .sidebar h2 {
+                display: none;
+            }
+            .nav-link span {
+                display: none;
+            }
+            .content {
+                padding: 1rem;
+            }
+            .filters select {
+                min-width: 120px;
+            }
+        }
+        /* Summary table wrapper styling */
+        .summary-table-wrapper {
+            overflow-x: auto;
+            max-height: 500px;
+        }
+        /* Document viewer styling */
+        #docViewer {
+            margin-top: 1.5rem;
+        }
+        #docViewer .document-item {
+            background: var(--white);
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        #docViewer .document-item h4 {
+            margin-bottom: 0.75rem;
+            color: var(--primary);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        #docViewer iframe {
+            width: 100%;
+            height: 480px;
+            border: none;
+            margin-bottom: 0.75rem;
+        }
+        #docViewer .notes {
+            font-size: 0.9rem;
+            color: var(--text);
+            margin-top: 0.5rem;
+        }
+
+        /*
+         * Custom styles for the updated summary table and document viewer.
+         * These styles freeze the first column of the summary table, colour
+         * the submission indicators, and add a modal and action buttons
+         * within the document viewer. Care has been taken to ensure these
+         * elements integrate seamlessly with the existing look and feel.
+         */
+
+        /* Sticky first column for the School Summary table */
+        #summaryTable th:first-child,
+        #summaryTable td:first-child {
+            position: sticky;
+            left: 0;
+            background: var(--secondary);
+            z-index: 2;
+        }
+        /* Ensure the top-left corner cell appears above other cells */
+        #summaryTable thead th:first-child {
+            z-index: 6;
+            /* Keep the header cell blue even when the first column is sticky */
+            background: var(--primary);
+            color: var(--white);
+        }
+        /* Colours for submission indicators */
+        .summary-check {
+            color: var(--success);
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .summary-cross {
+            color: var(--danger);
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        /* Document viewer header row with buttons */
+        .doc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .doc-header h4 {
+            margin: 0;
+            cursor: pointer;
+        }
+        .doc-buttons {
+            /* Always stack the two document buttons vertically */
+            display: flex;
+            flex-direction: column;
+            /* Slight spacing between the stacked buttons */
+            gap: 0.25rem;
+        }
+        .doc-buttons a {
+            /* Make buttons compact but still readable */
+            padding: 0.3rem 0.5rem;
+            font-size: 0.55rem;
+            border-radius: 4px;
+            background: var(--primary);
+            color: var(--white);
+            text-decoration: none;
+            white-space: nowrap;
+            /* Each anchor should occupy its own line within the flex column */
+            display: block;
+        }
+        .doc-buttons a:hover {
+            opacity: 0.85;
+        }
+
+        /* Override colours for specific document viewer buttons */
+        .doc-buttons a.summary-btn {
+            background: var(--success); /* green for summary */
+        }
+        .doc-buttons a.receipts-btn {
+            background: #007bff; /* blue for receipts */
+        }
+
+        /* Disabled state for document buttons: greyed out and non‑clickable */
+        .doc-buttons a.disabled {
+            background: #cccccc;
+            cursor: default;
+            pointer-events: none;
+            color: #666666;
+        }
+
+        /* Download button style for the School Summary tab */
+        .download-btn {
+            padding: 0.35rem 0.8rem;
+            font-size: 0.85rem;
+            border: none;
+            border-radius: 4px;
+            background: var(--primary);
+            color: var(--white);
+            cursor: pointer;
+            margin-left: 0.5rem;
+        }
+        .download-btn:hover {
+            opacity: 0.9;
+        }
+
+        /* Sticky header row for the School Summary table: keep background when scrolled */
+        #summaryTable thead th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: var(--primary);
+            color: var(--white);
+        }
+        /* Increase z-index for the first header cell to overlap the sticky first column */
+        #summaryTable thead th:first-child {
+            z-index: 6;
+        }
+        /* Modal for PDF viewing */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+        .modal-content {
+            background-color: var(--white);
+            margin: 5% auto;
+            padding: 1rem;
+            border-radius: 8px;
+            max-width: 90%;
+            max-height: 85%;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-content iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+        }
+        .modal-close {
+            align-self: flex-end;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Sidebar navigation -->
+        <nav class="sidebar">
+            <h2>Admin Panel</h2>
+            <ul class="nav-menu">
+                <li><a class="nav-link active" data-tab="tab-school"><i class="fas fa-school"></i><span>School Report</span></a></li>
+                <li><a class="nav-link" data-tab="tab-cluster"><i class="fas fa-layer-group"></i><span>Cluster Report</span></a></li>
+                <li><a class="nav-link" data-tab="tab-division"><i class="fas fa-university"></i><span>Division Report</span></a></li>
+                <li><a class="nav-link" data-tab="tab-monthly"><i class="fas fa-calendar-alt"></i><span>Division Monthly</span></a></li>
+                <li><a class="nav-link" data-tab="tab-yearly"><i class="fas fa-chart-line"></i><span>Yearly Report</span></a></li>
+                <!-- Added tabs for School Summary and Document Viewer -->
+                <li><a class="nav-link" data-tab="tab-summary"><i class="fas fa-table-list"></i><span>School Summary</span></a></li>
+                <li><a class="nav-link" data-tab="tab-documents"><i class="fas fa-file-lines"></i><span>Document Viewer</span></a></li>
+            </ul>
+        </nav>
+
+        <!-- Main content area -->
+        <div class="content">
+            <!-- School Report Performance -->
+            <div id="tab-school" class="tab active">
+                <h3>School Report Performance</h3>
+                <div class="filters">
+                    <select id="filterSchoolCluster">
+                        <option value="">All Clusters</option>
+                    </select>
+                    <select id="filterSchoolName">
+                        <option value="">All Schools</option>
+                    </select>
+                    <select id="filterSchoolMonth">
+                        <option value="">All Months</option>
+                    </select>
+                    <!-- Year filter for the School Report. Allows administrators to
+                         narrow results to a specific calendar year. Options are
+                         populated dynamically from the data set. -->
+                    <select id="filterSchoolYear">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="schoolChart"></canvas>
+                </div>
+                <table id="schoolTable">
+                    <thead>
+                        <tr>
+                            <th>Cluster</th>
+                            <th>School</th>
+                            <th>Month</th>
+                            <th>Year</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Cluster Report Performance -->
+            <div id="tab-cluster" class="tab">
+                <h3>Cluster Report Performance</h3>
+                <!-- Filters for month and cluster selection -->
+                <div class="filters">
+                    <select id="clusterMonthSelect">
+                        <option value="">All Months</option>
+                        <!-- Month options populated by JS -->
+                    </select>
+                    <select id="clusterSelect">
+                        <!-- Cluster options populated by JS -->
+                    </select>
+                    <!-- Year filter for the Cluster Report. Populated via JS with available years. -->
+                    <select id="clusterYearSelect">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="clusterChart"></canvas>
+                </div>
+                <table id="clusterTable">
+                    <thead>
+                        <tr>
+                            <th>Cluster</th>
+                            <th>Submissions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Division Report Performance -->
+            <div id="tab-division" class="tab">
+                <h3>Division Report Performance</h3>
+                <!-- Month filter for division report -->
+                <div class="filters">
+                    <select id="divisionMonthSelect">
+                        <option value="">All Months</option>
+                        <!-- Month options populated by JS -->
+                    </select>
+                    <!-- Year filter for the Division Report. Populated dynamically from the data. -->
+                    <select id="divisionYearSelect">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="divisionChart"></canvas>
+                </div>
+                <table id="divisionTable">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Division Monthly Report Performance -->
+            <div id="tab-monthly" class="tab">
+                <h3>Division Monthly Report Performance</h3>
+                <!-- Year filter for monthly report -->
+                <div class="filters">
+                    <select id="monthlyYearSelect">
+                        <option value="">All Years</option>
+                        <!-- Year options populated by JS -->
+                    </select>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+                <table id="monthlyTable">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Submissions</th>
+                            <th>Submitted/Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Yearly Report Performance -->
+            <div id="tab-yearly" class="tab">
+                <h3>Yearly Report Performance</h3>
+                <!-- Year filter for the Yearly Report. Allows selecting a specific
+                     calendar year to analyse submission totals. -->
+                <div class="filters">
+                    <select id="yearlyYearSelect">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="yearlyChart"></canvas>
+                </div>
+                <table id="yearlyTable">
+                    <thead>
+                        <tr>
+                            <th>Cluster</th>
+                            <th>Submitted</th>
+                            <th>Not Submitted</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by JS -->
+                    </tbody>
+            </table>
+            </div>
+            <!-- School Summary Report -->
+            <div id="tab-summary" class="tab">
+                <h3>School Summary Report</h3>
+                <!-- Year filter for summary, defaults to latest year -->
+                <div class="filters">
+                    <select id="summaryYearSelect">
+                        <!-- Years populated by JS -->
+                    </select>
+                    <!-- Download button for current summary report -->
+                    <button id="downloadSummaryButton" class="download-btn">Download Report</button>
+                </div>
+                <div class="summary-table-wrapper">
+                    <table id="summaryTable">
+                        <thead>
+                            <tr>
+                                <th>School</th>
+                                <!-- Month headers populated by JS -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Document Viewer -->
+            <div id="tab-documents" class="tab">
+                <h3>Document Viewer</h3>
+                <div class="filters">
+                    <select id="docSchoolSelect">
+                        <option value="">All Schools</option>
+                    </select>
+                    <select id="docYearSelect">
+                        <option value="">All Years</option>
+                    </select>
+                    <select id="docMonthSelect">
+                        <option value="">All Months</option>
+                    </select>
+                </div>
+                <div id="docViewer">
+                    <!-- Document items will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Modal for document previews -->
+    <div id="pdfModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <iframe id="modalIframe" src=""></iframe>
+        </div>
+    </div>
+
+    <script>
+        /*
+        This script drives the behaviour of the admin dashboard. It
+        downloads data from the public Google Sheets using the opensheet.elk.sh
+        service, parses the records into a JavaScript array and then
+        dynamically populates charts and tables for each tab. No external
+        libraries besides Chart.js are required, making the page self‑contained.
+        */
+        // API endpoints for the two spreadsheets. These are publicly
+        // accessible and return JSON arrays of rows.
+        const SHEET_DATA_URL = 'https://opensheet.elk.sh/1DDS9inh6hBQR0k-r6QdWjIeF85mMT2zHzqEfW2gfg9o/Sheet1';
+        const SHEET_SCHOOLS_URL = 'https://opensheet.elk.sh/1F3uTqRuFHRxgisD3T_NZPKNuOCrc7flgSru_rJTP1GU/Sheet2';
+
+        // Application state
+        let records = [];
+        let allSchools = [];
+        const months = [
+            'January','February','March','April','May','June',
+            'July','August','September','October','November','December'
+        ];
+
+        // Chart instances
+        let schoolChartInstance = null;
+        let clusterChartInstance = null;
+        let divisionChartInstance = null;
+        let monthlyChartInstance = null;
+        let yearlyChartInstance = null;
+
+        // Utility: group by property
+        function groupBy(arr, keyFn) {
+            return arr.reduce((acc, item) => {
+                const key = keyFn(item);
+                acc[key] = acc[key] || [];
+                acc[key].push(item);
+                return acc;
+            }, {});
+        }
+
+        async function fetchData() {
+            try {
+                const [dataRes, schoolRes] = await Promise.all([
+                    fetch(SHEET_DATA_URL),
+                    fetch(SHEET_SCHOOLS_URL)
+                ]);
+                records = await dataRes.json();
+                allSchools = await schoolRes.json();
+            } catch (err) {
+                console.error('Error fetching data:', err);
+            }
+        }
+
+        // Populate filters for School tab
+        function populateSchoolFilters() {
+            const clusterSelect = document.getElementById('filterSchoolCluster');
+            const schoolSelect = document.getElementById('filterSchoolName');
+            const monthSelect = document.getElementById('filterSchoolMonth');
+            // Clusters from data (unique units)
+            const clusters = [...new Set(records.map(r => r['Unit']))].filter(Boolean);
+            clusters.forEach(unit => {
+                const opt = document.createElement('option');
+                opt.value = unit;
+                opt.textContent = unit;
+                clusterSelect.appendChild(opt);
+            });
+            // Schools from sheet2
+            allSchools.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.School;
+                opt.textContent = s.School;
+                schoolSelect.appendChild(opt);
+            });
+            // Months
+            months.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                monthSelect.appendChild(opt);
+            });
+        }
+
+        // Populate filters for Cluster tab (month and cluster select)
+        function populateClusterFilters() {
+            const monthSelect = document.getElementById('clusterMonthSelect');
+            const clusterSelect = document.getElementById('clusterSelect');
+            if (!monthSelect || !clusterSelect) return;
+            // Populate month options
+            months.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                monthSelect.appendChild(opt);
+            });
+            // Default option for overall performance
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = 'Overall Performance';
+            clusterSelect.appendChild(defaultOpt);
+            // Gather unique clusters from records and sort alphabetically
+            const clusters = [...new Set(records.map(r => (r['Unit'] || 'Unknown')))].sort();
+            clusters.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                clusterSelect.appendChild(opt);
+            });
+        }
+
+        // Populate filter for Division tab (month select)
+        function populateDivisionFilters() {
+            const monthSelect = document.getElementById('divisionMonthSelect');
+            if (!monthSelect) return;
+            months.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                monthSelect.appendChild(opt);
+            });
+        }
+
+        // Populate year filter for Monthly tab
+        function populateMonthlyYearFilter() {
+            const yearSelect = document.getElementById('monthlyYearSelect');
+            if (!yearSelect) return;
+            // Collect unique years from records and sort descending
+            const years = [...new Set(records.map(r => r['Year']).filter(Boolean))].sort((a,b) => b.localeCompare(a));
+            years.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                yearSelect.appendChild(opt);
+            });
+        }
+
+        // Populate a generic year filter for a given select element. This helper
+        // empties the target select and inserts an "All Years" option followed
+        // by the distinct years present in the dataset in descending order. The
+        // selectId parameter should correspond to the id of the <select> tag.
+        function populateYearFilter(selectId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            // Clear existing options
+            select.innerHTML = '';
+            // Add default option allowing the user to view all years combined
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = 'All Years';
+            select.appendChild(defaultOpt);
+            // Determine unique years from the records dataset and sort descending
+            const years = [...new Set(records.map(r => r['Year']).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+            years.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                select.appendChild(opt);
+            });
+        }
+
+        // Filter records based on School Report filters
+        function getFilteredSchoolRecords() {
+            const cluster = document.getElementById('filterSchoolCluster').value;
+            const school = document.getElementById('filterSchoolName').value;
+            const month = document.getElementById('filterSchoolMonth').value;
+            const yearEl = document.getElementById('filterSchoolYear');
+            const year = yearEl ? yearEl.value : '';
+            return records.filter(r => {
+                const matchesCluster = !cluster || (r['Unit'] === cluster);
+                const matchesSchool = !school || (r['School'] === school);
+                const matchesMonth = !month || (r['Canteen Report for the Month of'] === month);
+                const matchesYear = !year || (r['Year'] === year);
+                return matchesCluster && matchesSchool && matchesMonth && matchesYear;
+            });
+        }
+
+        function renderSchoolTable() {
+            const tbody = document.getElementById('schoolTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            const filtered = getFilteredSchoolRecords();
+            filtered.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row['Unit'] || ''}</td>
+                    <td>${row['School'] || ''}</td>
+                    <td>${row['Canteen Report for the Month of'] || ''}</td>
+                    <td>${row['Year'] || ''}</td>
+                    <td>Submitted</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderSchoolChart() {
+            const ctx = document.getElementById('schoolChart').getContext('2d');
+            const filtered = getFilteredSchoolRecords();
+            // Count submissions per month for selected filters
+            const counts = months.map(m => filtered.filter(r => r['Canteen Report for the Month of'] === m).length);
+            if (schoolChartInstance) schoolChartInstance.destroy();
+            schoolChartInstance = new Chart(ctx, {
+                // Use a radar chart to visualise submissions across months
+                type: 'radar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Submissions',
+                        data: counts,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Submissions per Month'
+                        },
+                        legend: { display: false }
+                    },
+                    scales: {
+                        // Radar chart uses radial scale 'r'
+                        r: {
+                            beginAtZero: true,
+                            suggestedMax: Math.max(1, Math.max(...counts)) + 1,
+                            ticks: {
+                                stepSize: 1
+                            },
+                            pointLabels: {
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--text') || '#333'
+                            },
+                            angleLines: {
+                                color: '#eee'
+                            },
+                            grid: {
+                                color: '#f0f0f0'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Cluster tab: summarise per cluster for selected month and/or cluster filter
+        function renderClusterReport() {
+            const monthSel = document.getElementById('clusterMonthSelect');
+            const selectedMonth = monthSel ? monthSel.value : '';
+            const clusterSel = document.getElementById('clusterSelect');
+            const selectedCluster = clusterSel ? clusterSel.value : '';
+            const yearSel = document.getElementById('clusterYearSelect');
+            const selectedYear = yearSel ? yearSel.value : '';
+
+            // Build filtered records based on year, month and cluster
+            let filtered = records.slice();
+            if (selectedYear) {
+                filtered = filtered.filter(r => r['Year'] === selectedYear);
+            }
+            if (selectedMonth) {
+                filtered = filtered.filter(r => r['Canteen Report for the Month of'] === selectedMonth);
+            }
+            if (selectedCluster) {
+                filtered = filtered.filter(r => (r['Unit'] || 'Unknown') === selectedCluster);
+            }
+
+            // Group by cluster; if a specific cluster is selected, group array will still contain only that cluster
+            const grouped = groupBy(filtered, r => r['Unit'] || 'Unknown');
+            let clusters = Object.keys(grouped);
+            // If a specific cluster is chosen but has no records, ensure it still appears with zero count
+            if (selectedCluster) {
+                clusters = [selectedCluster];
+                if (!grouped[selectedCluster]) {
+                    grouped[selectedCluster] = [];
+                }
+            }
+            // Sort clusters alphabetically for consistency
+            clusters.sort();
+            const counts = clusters.map(c => (grouped[c] ? grouped[c].length : 0));
+
+            // Table rendering
+            const tbody = document.getElementById('clusterTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            clusters.forEach((cl, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${cl}</td><td>${counts[i]}</td>`;
+                tbody.appendChild(tr);
+            });
+
+            // Chart rendering – show submissions per cluster using a line chart
+            const ctx = document.getElementById('clusterChart').getContext('2d');
+            if (clusterChartInstance) clusterChartInstance.destroy();
+            // Build a descriptive chart title incorporating selected month/year
+            let chartTitle;
+            const monthPart = selectedMonth ? selectedMonth : 'All Months';
+            const yearPart = selectedYear ? selectedYear : 'All Years';
+            if (selectedMonth && selectedYear) {
+                chartTitle = `Cluster Submissions – ${selectedMonth} ${selectedYear}`;
+            } else if (selectedMonth && !selectedYear) {
+                chartTitle = `Cluster Submissions – ${selectedMonth}`;
+            } else if (!selectedMonth && selectedYear) {
+                chartTitle = `Cluster Submissions – All Months ${selectedYear}`;
+            } else {
+                chartTitle = 'Cluster Submissions – All Months';
+            }
+            // Determine suggested maximum for Y axis for readability
+            const maxCount = counts.length ? Math.max(...counts) : 0;
+            clusterChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: clusters,
+                    datasets: [{
+                        label: 'Submissions',
+                        data: counts,
+                        fill: false,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: chartTitle
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Cluster' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Submissions' },
+                            beginAtZero: true,
+                            suggestedMax: maxCount + 1
+                        }
+                    }
+                }
+            });
+        }
+
+        // Division tab: summarise overall submissions vs total schools
+        function renderDivisionReport() {
+            const monthSel = document.getElementById('divisionMonthSelect');
+            const selectedMonth = monthSel ? monthSel.value : '';
+            const yearSel = document.getElementById('divisionYearSelect');
+            const selectedYear = yearSel ? yearSel.value : '';
+            // Start with all records then filter by year and month
+            let submissions = records.slice();
+            if (selectedYear) {
+                submissions = submissions.filter(r => r['Year'] === selectedYear);
+            }
+            if (selectedMonth) {
+                submissions = submissions.filter(r => r['Canteen Report for the Month of'] === selectedMonth);
+            }
+            // Determine unique submitted schools
+            const submittedSchools = new Set(submissions.map(r => r['School']));
+            const totalSchools = allSchools.length;
+            const submittedCount = submittedSchools.size;
+            const notSubmitted = totalSchools - submittedCount;
+            // Late submissions placeholder (no due date)
+            const late = 0;
+            const statuses = ['Submitted', 'Not Submitted', 'Submitted Late'];
+            const values = [submittedCount, notSubmitted, late];
+            // Update table
+            const tbody = document.getElementById('divisionTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            statuses.forEach((status, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${status}</td><td>${values[i]}</td>`;
+                tbody.appendChild(tr);
+            });
+            // Update chart
+            const ctx = document.getElementById('divisionChart').getContext('2d');
+            if (divisionChartInstance) divisionChartInstance.destroy();
+            // Build a descriptive title including selected month/year
+            let titleText;
+            if (selectedMonth && selectedYear) {
+                titleText = `Division Submissions – ${selectedMonth} ${selectedYear}`;
+            } else if (selectedMonth && !selectedYear) {
+                titleText = `Division Submissions – ${selectedMonth}`;
+            } else if (!selectedMonth && selectedYear) {
+                titleText = `Division Submissions – All Months ${selectedYear}`;
+            } else {
+                titleText = 'Division Submissions – All Months';
+            }
+            divisionChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: statuses,
+                    datasets: [{
+                        data: values
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: titleText
+                        },
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        // Monthly tab: summarise count of submissions per month across the selected year
+        function renderMonthlyReport() {
+            const yearSel = document.getElementById('monthlyYearSelect');
+            const selectedYear = yearSel ? yearSel.value : '';
+            // Filter records based on selected year
+            let yearFiltered = records.slice();
+            if (selectedYear) {
+                yearFiltered = yearFiltered.filter(r => r['Year'] === selectedYear);
+            }
+            // Count submissions per month (all years or selected year)
+            const counts = months.map(m => yearFiltered.filter(r => r['Canteen Report for the Month of'] === m).length);
+            // Table generation: include submission summary column
+            const tbody = document.getElementById('monthlyTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            const totalSchools = allSchools.length;
+            months.forEach((m, i) => {
+                // Determine unique schools that submitted this month in the filtered year
+                const monthRecords = yearFiltered.filter(r => r['Canteen Report for the Month of'] === m);
+                const uniqueSchools = new Set(monthRecords.map(r => r['School']));
+                const submittedCount = uniqueSchools.size;
+                const summary = `${submittedCount} out of ${totalSchools}`;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${m}</td><td>${counts[i]}</td><td>${summary}</td>`;
+                tbody.appendChild(tr);
+            });
+            // Chart generation
+            const ctx = document.getElementById('monthlyChart').getContext('2d');
+            if (monthlyChartInstance) monthlyChartInstance.destroy();
+            const titleText = selectedYear ? `Submissions per Month – ${selectedYear}` : 'Submissions per Month (All Years)';
+            monthlyChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Submissions',
+                        data: counts,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: titleText
+                        },
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Month' } },
+                        y: { title: { display: true, text: 'Count' }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Yearly tab: summarise submissions and non-submissions per cluster for current year
+        function renderYearlyReport() {
+            // Determine selected year from the dropdown. If none is selected,
+            // use all records across years. When a year is chosen, only
+            // consider submissions from that specific year.
+            const yearSel = document.getElementById('yearlyYearSelect');
+            const selectedYear = yearSel ? yearSel.value : '';
+            let yearRecords;
+            if (selectedYear) {
+                yearRecords = records.filter(r => r['Year'] === selectedYear);
+            } else {
+                yearRecords = records.slice();
+            }
+            // Determine clusters from all records (ensuring all appear even if none submitted in the selected period)
+            const allClusters = [...new Set(records.map(r => (r['Unit'] || 'Unknown')))].sort();
+            // Build a mapping of total schools per cluster from the schools list if possible
+            const schoolsByCluster = {};
+            let clusterKey = null;
+            if (allSchools && allSchools.length) {
+                // Identify possible cluster key in allSchools
+                const sample = allSchools[0];
+                for (const key in sample) {
+                    const lower = key.toLowerCase();
+                    if (lower.includes('cluster') || lower.includes('unit')) {
+                        clusterKey = key;
+                        break;
+                    }
+                }
+            }
+            if (clusterKey) {
+                allSchools.forEach(s => {
+                    const cluster = s[clusterKey] || 'Unknown';
+                    const schoolName = s['School'] || s['School Name'] || s['school'] || '';
+                    if (!schoolsByCluster[cluster]) schoolsByCluster[cluster] = new Set();
+                    schoolsByCluster[cluster].add(schoolName);
+                });
+            } else {
+                // Fallback: derive total schools from records (unique schools per cluster across all years)
+                records.forEach(r => {
+                    const cluster = r['Unit'] || 'Unknown';
+                    const schoolName = r['School'];
+                    if (!schoolsByCluster[cluster]) schoolsByCluster[cluster] = new Set();
+                    schoolsByCluster[cluster].add(schoolName);
+                });
+            }
+            // Determine submitted schools per cluster in the selected year (or overall)
+            const submittedByCluster = {};
+            allClusters.forEach(cl => {
+                submittedByCluster[cl] = new Set();
+            });
+            yearRecords.forEach(r => {
+                const cluster = r['Unit'] || 'Unknown';
+                const schoolName = r['School'];
+                if (!submittedByCluster[cluster]) submittedByCluster[cluster] = new Set();
+                submittedByCluster[cluster].add(schoolName);
+            });
+            // Build arrays for chart and table
+            const submittedCounts = [];
+            const notSubmittedCounts = [];
+            allClusters.forEach(cl => {
+                // For yearly report, use the overall number of schools as the baseline for each cluster.
+                const totalSchools = allSchools.length;
+                const submittedCount = submittedByCluster[cl] ? submittedByCluster[cl].size : 0;
+                const notSubmitted = Math.max(0, totalSchools - submittedCount);
+                submittedCounts.push(submittedCount);
+                notSubmittedCounts.push(notSubmitted);
+            });
+            // Populate table
+            const tbody = document.getElementById('yearlyTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            allClusters.forEach((cl, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${cl}</td><td>${submittedCounts[i]}</td><td>${notSubmittedCounts[i]}</td>`;
+                tbody.appendChild(tr);
+            });
+            // Render bar chart with stacked datasets
+            const ctx = document.getElementById('yearlyChart').getContext('2d');
+            if (yearlyChartInstance) yearlyChartInstance.destroy();
+            yearlyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: allClusters,
+                    datasets: [
+                        {
+                            label: 'Submitted',
+                            data: submittedCounts,
+                            backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--success') || '#28a745'
+                        },
+                        {
+                            label: 'Not Submitted',
+                            data: notSubmittedCounts,
+                            backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--danger') || '#dc3545'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: selectedYear ? `Yearly Submissions by Cluster – ${selectedYear}` : 'Yearly Submissions by Cluster – All Years'
+                        },
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        x: { stacked: true, title: { display: true, text: 'Cluster' } },
+                        y: { stacked: true, title: { display: true, text: 'Count' }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        /*
+         * Summary and document viewer functions
+         *
+         * These helper functions populate the new School Summary and Document Viewer
+         * tabs introduced into the admin panel. The summary tab displays a
+         * compliance matrix of all schools by month and year, while the document
+         * viewer tab allows administrators to filter and view submitted reports.
+         */
+
+        // Populate the year filter for the School Summary tab. This will list
+        // all years present in the records, sorted descending so the most
+        // recent year appears first. The latest year is selected by default.
+        function populateSummaryYearFilter() {
+            const select = document.getElementById('summaryYearSelect');
+            if (!select) return;
+            // Derive unique years from the main dataset
+            const years = [...new Set(records.map(r => r['Year']).filter(Boolean))].sort((a,b) => b.localeCompare(a));
+            select.innerHTML = '';
+            years.forEach((y, idx) => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                if (idx === 0) {
+                    opt.selected = true;
+                }
+                select.appendChild(opt);
+            });
+        }
+
+        // Render the School Summary table. For each school and each month in
+        // the selected year, mark whether a report was submitted. A green check
+        // mark (✔) indicates a submission, while an em dash (—) denotes
+        // missing data. This function rebuilds the table header and body from
+        // scratch whenever the year filter changes.
+        function renderSchoolSummary() {
+            const yearSel = document.getElementById('summaryYearSelect');
+            const year = yearSel && yearSel.value ? yearSel.value : '';
+            const table = document.getElementById('summaryTable');
+            if (!table) return;
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+            // Clear existing header and body
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+            // Build header row: first column for school name then months
+            const headerRow = document.createElement('tr');
+            const schoolHeader = document.createElement('th');
+            schoolHeader.textContent = 'School';
+            headerRow.appendChild(schoolHeader);
+            months.forEach(m => {
+                const th = document.createElement('th');
+                th.textContent = m;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            // Determine the key in the allSchools objects that represents the
+            // school name. Some datasets might use "School" or "School Name".
+            let schoolNameKey = null;
+            if (allSchools.length) {
+                const sample = allSchools[0];
+                for (const key in sample) {
+                    const lower = key.toLowerCase();
+                    if (lower.includes('school')) {
+                        schoolNameKey = key;
+                        break;
+                    }
+                }
+            }
+            // Fallback key if none found
+            if (!schoolNameKey) schoolNameKey = 'School';
+            // Create a mapping of submissions for quick lookup: {school → {month → true}}
+            const submissionMap = {};
+            records.forEach(r => {
+                if (year && r['Year'] !== year) return;
+                const sch = r['School'];
+                const month = r['Canteen Report for the Month of'];
+                if (!sch || !month) return;
+                if (!submissionMap[sch]) submissionMap[sch] = {};
+                submissionMap[sch][month] = true;
+            });
+            // Build body rows for each school
+            allSchools.forEach(schoolObj => {
+                const schoolName = schoolObj[schoolNameKey] || schoolObj['School'] || schoolObj['School Name'] || '';
+                const tr = document.createElement('tr');
+                const nameTd = document.createElement('td');
+                nameTd.textContent = schoolName;
+                tr.appendChild(nameTd);
+                months.forEach(m => {
+                    const td = document.createElement('td');
+                    // Display a coloured check or cross depending on submission
+                    const submitted = submissionMap[schoolName] && submissionMap[schoolName][m];
+                    if (submitted) {
+                        td.innerHTML = '<span class="summary-check">✅</span>';
+                    } else {
+                        td.innerHTML = '<span class="summary-cross">❌</span>';
+                    }
+                    td.style.textAlign = 'center';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Populate the dropdowns for the Document Viewer tab. Populates school,
+        // year and month filters using existing data from allSchools, records and
+        // the months array. Includes default "All" options.
+        function populateDocFilters() {
+            const schoolSel = document.getElementById('docSchoolSelect');
+            const yearSel = document.getElementById('docYearSelect');
+            const monthSel = document.getElementById('docMonthSelect');
+            if (!schoolSel || !yearSel || !monthSel) return;
+            // Populate schools
+            schoolSel.innerHTML = '<option value="">All Schools</option>';
+            // Determine key for school names
+            let schoolKey = null;
+            if (allSchools.length) {
+                const sample = allSchools[0];
+                for (const key in sample) {
+                    if (key.toLowerCase().includes('school')) {
+                        schoolKey = key;
+                        break;
+                    }
+                }
+            }
+            if (!schoolKey) schoolKey = 'School';
+            allSchools.forEach(s => {
+                const name = s[schoolKey] || s['School'] || s['School Name'] || '';
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                schoolSel.appendChild(opt);
+            });
+            // Populate years
+            yearSel.innerHTML = '<option value="">All Years</option>';
+            const years = [...new Set(records.map(r => r['Year']).filter(Boolean))].sort((a,b) => b.localeCompare(a));
+            years.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                yearSel.appendChild(opt);
+            });
+            // Populate months
+            monthSel.innerHTML = '<option value="">All Months</option>';
+            months.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                monthSel.appendChild(opt);
+            });
+        }
+
+        // Convert a given file URL into an embeddable PDF URL. If the
+        // underlying file is already a PDF, return it as is. Otherwise, use
+        // Google's viewer to embed the file. The viewer accepts any public
+        // document and converts it to a PDF on the fly.
+        function getEmbedURL(url) {
+            if (!url) return '';
+            try {
+                const lower = url.split('?')[0].toLowerCase();
+                if (lower.endsWith('.pdf')) {
+                    return url;
+                }
+                // Use Google docs viewer to convert other formats into embeddable PDFs
+                return `https://drive.google.com/viewerng/viewer?embedded=1&url=${encodeURIComponent(url)}`;
+            } catch (e) {
+                return url;
+            }
+        }
+
+        // Render the Document Viewer tab. Filters records based on selected
+        // school, year and month, then embeds the summary and receipts
+        // documents side by side. If a file is missing, it is skipped. Additional
+        // notes are shown below each set of documents.
+        function renderDocumentViewer() {
+            const schoolSel = document.getElementById('docSchoolSelect');
+            const yearSel = document.getElementById('docYearSelect');
+            const monthSel = document.getElementById('docMonthSelect');
+            const container = document.getElementById('docViewer');
+            if (!container) return;
+            const school = schoolSel && schoolSel.value ? schoolSel.value : '';
+            const year = yearSel && yearSel.value ? yearSel.value : '';
+            const month = monthSel && monthSel.value ? monthSel.value : '';
+            // Filter records accordingly
+            let filtered = records.slice();
+            if (school) {
+                filtered = filtered.filter(r => r['School'] === school);
+            }
+            if (year) {
+                filtered = filtered.filter(r => r['Year'] === year);
+            }
+            if (month) {
+                filtered = filtered.filter(r => r['Canteen Report for the Month of'] === month);
+            }
+            container.innerHTML = '';
+            filtered.forEach((r, idx) => {
+                const docItem = document.createElement('div');
+                docItem.classList.add('document-item');
+                // Determine raw URLs and embeddable URLs for summary and receipts.
+                // Some sheets include the column suffix "(PDF/Word/Excel)". We'll search keys containing
+                // the keywords 'summary' and 'receipt' (case‑insensitive) to be robust.
+                let rawSummary = '';
+                let rawReceipts = '';
+                for (const key in r) {
+                    if (!rawSummary && key.toLowerCase().includes('summary')) {
+                        rawSummary = r[key];
+                    }
+                    if (!rawReceipts && key.toLowerCase().includes('receipt')) {
+                        rawReceipts = r[key];
+                    }
+                }
+                // Treat plain text (non-URL) values as missing
+                if (rawSummary && !/^https?:\/\//i.test(rawSummary)) {
+                    rawSummary = '';
+                }
+                if (rawReceipts && !/^https?:\/\//i.test(rawReceipts)) {
+                    rawReceipts = '';
+                }
+                const summaryUrl = getEmbedURL(rawSummary);
+                const receiptsUrl = getEmbedURL(rawReceipts);
+                const schName = r['School'] || '';
+                const mth = r['Canteen Report for the Month of'] || '';
+                const yr = r['Year'] || '';
+
+                // Header row containing title and action buttons
+                const headerDiv = document.createElement('div');
+                headerDiv.classList.add('doc-header');
+                // Title element – clickable if a document is available
+                const titleEl = document.createElement('h4');
+                titleEl.textContent = `${schName} – ${mth} ${yr}`;
+                const primaryDocUrl = summaryUrl || receiptsUrl;
+                if (primaryDocUrl) {
+                    titleEl.style.cursor = 'pointer';
+                    titleEl.addEventListener('click', () => {
+                        openModal(primaryDocUrl);
+                    });
+                }
+                headerDiv.appendChild(titleEl);
+                // Buttons container
+                const buttonsContainer = document.createElement('div');
+                buttonsContainer.classList.add('doc-buttons');
+                // No inline styles here; rely on CSS to handle vertical stacking and spacing
+                // Summary button – if no document is provided, show a disabled button
+                const summaryBtn = document.createElement('a');
+                summaryBtn.textContent = 'View Canteen Report Summary';
+                summaryBtn.classList.add('summary-btn');
+                // Only assign href if a summary URL exists; otherwise, disable the button
+                if (rawSummary) {
+                    summaryBtn.href = rawSummary;
+                    summaryBtn.target = '_blank';
+                    summaryBtn.rel = 'noopener';
+                } else {
+                    summaryBtn.href = '#';
+                    summaryBtn.classList.add('disabled');
+                }
+                buttonsContainer.appendChild(summaryBtn);
+                // Receipts button – if no receipts document is provided, show a disabled button
+                const receiptsBtn = document.createElement('a');
+                receiptsBtn.textContent = 'View Canteen Report Receipts';
+                receiptsBtn.classList.add('receipts-btn');
+                if (rawReceipts) {
+                    receiptsBtn.href = rawReceipts;
+                    receiptsBtn.target = '_blank';
+                    receiptsBtn.rel = 'noopener';
+                } else {
+                    receiptsBtn.href = '#';
+                    receiptsBtn.classList.add('disabled');
+                }
+                buttonsContainer.appendChild(receiptsBtn);
+                headerDiv.appendChild(buttonsContainer);
+                docItem.appendChild(headerDiv);
+                // We do not embed the documents directly; users can click the title or the buttons to view them.
+                // Additional notes (Column I or labelled 'Additional Notes')
+                const notes = r['Additional Notes'] || r['Notes'] || '';
+                if (notes) {
+                    const notesEl = document.createElement('div');
+                    notesEl.classList.add('notes');
+                    notesEl.innerHTML = `<strong>Notes:</strong> ${notes}`;
+                    docItem.appendChild(notesEl);
+                }
+                container.appendChild(docItem);
+            });
+        }
+
+        // Initialise tab navigation
+        function initNavigation() {
+            const links = document.querySelectorAll('.nav-link');
+            links.forEach(link => {
+                link.addEventListener('click', evt => {
+                    evt.preventDefault();
+                    // Activate selected link
+                    links.forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    // Show corresponding tab
+                    const targetId = link.getAttribute('data-tab');
+                    document.querySelectorAll('.tab').forEach(tab => {
+                        tab.classList.remove('active');
+                    });
+                    document.getElementById(targetId).classList.add('active');
+                    // Re-render charts when switching tabs to avoid hidden canvas issues
+                    if (targetId === 'tab-school') {
+                        renderSchoolTable();
+                        renderSchoolChart();
+                    } else if (targetId === 'tab-cluster') {
+                        renderClusterReport();
+                    } else if (targetId === 'tab-division') {
+                        renderDivisionReport();
+                    } else if (targetId === 'tab-monthly') {
+                        renderMonthlyReport();
+                    } else if (targetId === 'tab-yearly') {
+                        renderYearlyReport();
+                    } else if (targetId === 'tab-summary') {
+                        // Render summary when navigating to summary tab
+                        renderSchoolSummary();
+                    } else if (targetId === 'tab-documents') {
+                        // Render documents when navigating to documents tab
+                        renderDocumentViewer();
+                    }
+                });
+            });
+        }
+
+        // Setup event listeners for sliders and filters
+        function initControls() {
+            // School filters
+            ['filterSchoolCluster','filterSchoolName','filterSchoolMonth'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', () => {
+                        renderSchoolTable();
+                        renderSchoolChart();
+                    });
+                }
+            });
+            // Year filter for School tab
+            const schoolYearSel = document.getElementById('filterSchoolYear');
+            if (schoolYearSel) {
+                schoolYearSel.addEventListener('change', () => {
+                    renderSchoolTable();
+                    renderSchoolChart();
+                });
+            }
+            // Cluster filters
+            const clusterMonthSel = document.getElementById('clusterMonthSelect');
+            const clusterSel = document.getElementById('clusterSelect');
+            if (clusterMonthSel) {
+                clusterMonthSel.addEventListener('change', () => {
+                    renderClusterReport();
+                });
+            }
+            if (clusterSel) {
+                clusterSel.addEventListener('change', () => {
+                    renderClusterReport();
+                });
+            }
+            // Year filter for Cluster tab
+            const clusterYearSel = document.getElementById('clusterYearSelect');
+            if (clusterYearSel) {
+                clusterYearSel.addEventListener('change', () => {
+                    renderClusterReport();
+                });
+            }
+            // Division month filter
+            const divisionMonthSel = document.getElementById('divisionMonthSelect');
+            if (divisionMonthSel) {
+                divisionMonthSel.addEventListener('change', () => {
+                    renderDivisionReport();
+                });
+            }
+            // Year filter for Division tab
+            const divisionYearSel = document.getElementById('divisionYearSelect');
+            if (divisionYearSel) {
+                divisionYearSel.addEventListener('change', () => {
+                    renderDivisionReport();
+                });
+            }
+            // Monthly year filter
+            const monthlyYearSel = document.getElementById('monthlyYearSelect');
+            if (monthlyYearSel) {
+                monthlyYearSel.addEventListener('change', () => {
+                    renderMonthlyReport();
+                });
+            }
+
+            // Summary year filter
+            const summaryYearSel = document.getElementById('summaryYearSelect');
+            if (summaryYearSel) {
+                summaryYearSel.addEventListener('change', () => {
+                    renderSchoolSummary();
+                });
+            }
+
+            // Document viewer filters
+            const docSchoolSel = document.getElementById('docSchoolSelect');
+            const docYearSel = document.getElementById('docYearSelect');
+            const docMonthSel = document.getElementById('docMonthSelect');
+            if (docSchoolSel) {
+                docSchoolSel.addEventListener('change', () => {
+                    renderDocumentViewer();
+                });
+            }
+            if (docYearSel) {
+                docYearSel.addEventListener('change', () => {
+                    renderDocumentViewer();
+                });
+            }
+            if (docMonthSel) {
+                docMonthSel.addEventListener('change', () => {
+                    renderDocumentViewer();
+                });
+            }
+
+            // Year filter for Yearly tab
+            const yearlyYearSel = document.getElementById('yearlyYearSelect');
+            if (yearlyYearSel) {
+                yearlyYearSel.addEventListener('change', () => {
+                    renderYearlyReport();
+                });
+            }
+        }
+
+        /*
+         * Modal functions for viewing PDF documents. When a document title is
+         * clicked, the corresponding file is loaded into an iframe inside a
+         * modal overlay. Users can close the modal by clicking the × button
+         * or by clicking outside the modal content. These functions are
+         * defined once and reused throughout the document viewer.
+         */
+        function openModal(url) {
+            const modal = document.getElementById('pdfModal');
+            const iframe = document.getElementById('modalIframe');
+            if (!modal || !iframe) return;
+            iframe.src = url || '';
+            modal.style.display = 'block';
+        }
+        function closeModal() {
+            const modal = document.getElementById('pdfModal');
+            const iframe = document.getElementById('modalIframe');
+            if (!modal || !iframe) return;
+            iframe.src = '';
+            modal.style.display = 'none';
+        }
+
+        /*
+         * Download the current School Summary table as a CSV file. This
+         * function iterates over the visible summary table (including the
+         * header row) and constructs a CSV string, then triggers a file
+         * download in the browser. The filename includes the current
+         * timestamp to avoid collisions.
+         */
+        function downloadSummary() {
+            // Convert the summary table into a PDF using jsPDF and autoTable.
+            const table = document.getElementById('summaryTable');
+            if (!table) return;
+            // Use the UMD build of jsPDF exposed on window.jspdf
+            const { jsPDF } = window.jspdf || {};
+            if (!jsPDF) {
+                console.error('jsPDF library not loaded');
+                return;
+            }
+            const date = new Date().toISOString().split('T')[0];
+            // Create a new PDF in landscape orientation. Use points for more precise sizing.
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+            // Optional title
+            doc.setFontSize(14);
+            doc.text('School Summary Report', 40, 40);
+            // Build table data manually to ensure check (✓) and cross (✗) marks are retained.
+            const rows = table.querySelectorAll('tr');
+            const head = [];
+            const body = [];
+            rows.forEach((tr, idx) => {
+                const cells = tr.querySelectorAll('th, td');
+                const rowData = [];
+                cells.forEach(cell => {
+                    // Detect our custom summary check/cross spans
+                    const isCheck = cell.querySelector('.summary-check');
+                    const isCross = cell.querySelector('.summary-cross');
+                    if (isCheck) {
+                        // Represent submissions with descriptive text in the PDF
+                        rowData.push('Submitted');
+                    } else if (isCross) {
+                        rowData.push('Not Submitted');
+                    } else {
+                        // Use text content for other cells
+                        rowData.push(cell.textContent.trim());
+                    }
+                });
+                if (idx === 0) {
+                    head.push(rowData);
+                } else {
+                    body.push(rowData);
+                }
+            });
+            // Render using autoTable with custom head/body arrays
+            doc.autoTable({
+                head: head,
+                body: body,
+                startY: 60,
+                margin: { left: 40, right: 40 },
+                styles: { fontSize: 8, cellPadding: 3 },
+                headStyles: { fillColor: [0, 86, 179], textColor: 255, halign: 'center' },
+                bodyStyles: { halign: 'center' },
+                alternateRowStyles: { fillColor: [245, 245, 245] },
+                columnStyles: { 0: { halign: 'left', cellWidth: 'auto' } }
+            });
+            doc.save(`school-summary-${date}.pdf`);
+        }
+        // Attach modal event listeners once DOM content is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('pdfModal');
+            const closeBtn = document.querySelector('.modal-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    closeModal();
+                });
+            }
+            window.addEventListener('click', (ev) => {
+                if (ev.target === modal) {
+                    closeModal();
+                }
+            });
+        });
+
+        // Attach click handler for the summary download button once DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const downloadBtn = document.getElementById('downloadSummaryButton');
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', (ev) => {
+                    // Prevent default form submission if any
+                    ev.preventDefault();
+                    downloadSummary();
+                });
+            }
+        });
+
+        // Main initialisation
+        (async function init() {
+            await fetchData();
+            populateSchoolFilters();
+            populateClusterFilters();
+            populateDivisionFilters();
+            populateMonthlyYearFilter();
+            // Populate year filters for newly added dropdowns
+            populateYearFilter('filterSchoolYear');
+            populateYearFilter('clusterYearSelect');
+            populateYearFilter('divisionYearSelect');
+            populateYearFilter('yearlyYearSelect');
+            // Populate new filters
+            populateSummaryYearFilter();
+            populateDocFilters();
+            initNavigation();
+            initControls();
+            // Initial renders
+            renderSchoolTable();
+            renderSchoolChart();
+            renderClusterReport();
+            renderDivisionReport();
+            renderMonthlyReport();
+            renderYearlyReport();
+            renderSchoolSummary();
+            renderDocumentViewer();
+        })();
+    </script>
+</body>
+</html>
